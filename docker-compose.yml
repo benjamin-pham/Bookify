@@ -1,0 +1,86 @@
+version: '3.4'
+
+services:
+    bookify.api:
+        image: ${DOCKER_REGISTRY-}bookifyapi
+        container_name: Bookify.Api
+        build:
+            context: .
+            dockerfile: src/Bookify.Api/Dockerfile
+        depends_on:
+            - bookify.db
+        networks:
+          - local
+
+    bookify.db:
+        image: postgres:17
+        command: postgres -c 'max_connections=200'
+        container_name: Bookify.Database
+        environment:
+            - POSTGRES_DB=bookify
+            - POSTGRES_USER=db_admin
+            - POSTGRES_PASSWORD=db_admin
+        volumes:
+            - clean_postgres_db:/var/lib/postgresql/data
+        ports:
+            - 5432:5432
+        networks:
+          - local
+
+    bookify.idp:
+        image: quay.io/keycloak/keycloak:26.0
+        command: start-dev
+        container_name: Bookify.Identity
+        environment:
+            KC_DB: postgres
+            KC_DB_URL_HOST: bookify.db
+            KC_DB_URL_DATABASE: bookify
+            KC_DB_USERNAME: db_admin
+            KC_DB_PASSWORD: db_admin
+            KC_DB_SCHEMA: public
+            # KC_HOSTNAME: localhost
+            # KC_HOSTNAME_STRICT_BACKCHANNEL: false
+            # KC_HOSTNAME_STRICT_HTTPS: false
+            # KC_HOSTNAME_STRICT: true
+            # KC_HTTP_ENABLED: true
+            # KC_HTTP_PORT: 18080
+            # KC_HTTPS_ENABLED: false
+            # KC_METRICS_ENABLED: true
+            # KC_PROXY_MODE: edge
+            KEYCLOAK_ADMIN: admin
+            KEYCLOAK_ADMIN_PASSWORD: admin
+        ports:
+            - 18080:8080
+        depends_on:
+            - bookify.db
+        networks:
+          - local
+
+    bookify.seq:
+        image: datalust/seq:2024.3
+        container_name: Bookify.Logging
+        environment:
+            - ACCEPT_EULA=Y
+        ports:
+            - 5341:5341
+            - 8081:80
+        networks:
+          - local
+
+    bookify.redis:
+        image: redis:7.4.1
+        container_name: Bookify.Caching
+        restart: always
+        ports:
+            - 6379:6379
+        networks:
+            - local
+
+volumes:
+    clean_postgres_db:
+        driver: local
+
+networks:
+  local:
+    name: local
+    driver: bridge
